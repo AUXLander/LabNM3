@@ -1,161 +1,219 @@
 #include <iostream>
+#include <algorithm>
+#include <locale>
 #include "TStructs.h"
-#include "Region.h"
+
+using namespace std;
 
 typedef long double (*Function)(long double x, long double y);
 
 long double **Data;
-Point2D<long double>* Region;
 Function ruleFunc[6];
+
 Function funcDiff = [](long double x, long double y) {
-	return 8.L;
+	return 4.L;// -expl(-x * y * y);
 };
 
 
 //размерность сетки
 unsigned int n = 4;
 unsigned int m = 4;
-long double  h = 1.L / n;
-long double  k = 1.L / m;
-long double X0 = 0;
-long double Y0 = 0;
 
+unsigned int _n = n + 1;
+unsigned int _m = m + 1;
 
-using namespace std;
+unsigned int _nH = _n / 2;
+unsigned int _mH = _m / 2;
+
+long double X0 = 0.L;// 1.L;
+long double Y0 = 0.L;// 2.L;
+long double X1 = 2.L;
+long double Y1 = 1.L;// 3.L;
+
+long double  h = (X1 - X0) / n;
+long double  k = (Y1 - Y0) / m;
+
 
 long double Xi(unsigned int i) {
 	return X0 + i * h;
 }
 long double Yj(unsigned int j) {
-	return Y0 + j * h;
+	return Y0 + j * k;
 }
 
-void InitRule(Point2D<long double>* region, Function *functionArray) {
-	region = new Point2D<long double>[6];
-	region[0] = { 0,0 };
-	region[1] = { 0,2 };
-	region[2] = { 1,2 };
-	region[3] = { 1,1 };
-	region[4] = { 2,1 };
-	region[5] = { 2,0 };
-
+void InitRule(Function *functionArray) {
 	//y change
 	functionArray[0] = [](long double x, long double y) {
-		return 1.L;
+		return -powl(y - .5L, 2.L);// (y - 2)* (y - 3);
 	};
+
 	//x change
 	functionArray[1] = [](long double x, long double y) {
-		return 2.L;
+		return .75L - powl(x - 1.L, 2.L);// x* (x - 1)* (x - 2);
 	};
+
 	//y change
 	functionArray[2] = [](long double x, long double y) {
-		return 3.L;
+		return 1.L - powl(x - 1.L, 2.L) - powl(y - .5L, 2.L);
 	};
+
 	//x change
 	functionArray[3] = [](long double x, long double y) {
-		return 4.L;
+		return 1.L - powl(x - 1.L, 2.L) - powl(y - .5L, 2.L);
 	};
+
 	//y change
 	functionArray[4] = [](long double x, long double y) {
-		return 5.L;
+		return -powl(y - .5L, 2.L);// y* (y - 2)* (y - 3);
 	};
+
 	//x change
 	functionArray[5] = [](long double x, long double y) {
-		return 6.L;
+		return .75L - powl(x - 1.L, 2.L);// (x - 1)* (x - 2);
 	};
 }
 
-void InitGrid(long double*** data, unsigned int _n, unsigned int _m) {
+void InitGrid() {
 
-	_n = _n + 1;
-	_m = _m + 1;
-	
-	(*data) = new long double*[_n];
+	Data = new long double*[_n];
 	for (int i = 0; i < _n; i++) {
-		(*data)[i] = new long double[_m];
+		Data[i] = new long double[_m];
 
 		for (int j = 0; j < _m; j++) {
-			(*data)[i][j] = 0;
+			Data[i][j] = 0;
 		}
 	}
+
 	for (int j = 0; j < _m; j++) {
-		(*data)[0][j] = ruleFunc[0](Xi(0), Yj(j));
+		Data[0][j] = ruleFunc[0](Xi(0), Yj(j));
 	}
-	for (int i = 0; i < n / 2; i++) {
-		(*data)[i][m] = ruleFunc[1](Xi(i), Yj(m));
+	for (int i = 0; i < _nH; i++) {
+		Data[i][m] = ruleFunc[1](Xi(i), Yj(m));
 	}
 	for (int j = m / 2; j < _m ; j++) {
-		(*data)[n / 2][j] = ruleFunc[2](Xi(n / 2), Yj(j));
+		Data[_nH][j] = ruleFunc[2](Xi(_nH), Yj(j));
 	}
-	for (int i = n / 2; i < _n; i++) {
-		(*data)[i][m / 2] = ruleFunc[3](Xi(i), Yj(m / 2));
+	for (int i = _nH; i < _n; i++) {
+		Data[i][_mH] = ruleFunc[3](Xi(i), Yj(_mH));
 	}
 	for (int j = 0; j < m / 2; j++) {
-		(*data)[n][j] = ruleFunc[4](Xi(n), Yj(j));
+		Data[n][j] = ruleFunc[4](Xi(n), Yj(j));
 	}
 	for (int i = 0; i < _n; i++) {
-		(*data)[i][0] = ruleFunc[5](Xi(i), Yj(0));
+		Data[i][0] = ruleFunc[5](Xi(i), Yj(0));
 	}
 }
 
+void PrintGrid() {
+	for (int j = m; j >= 0; j--) {
+		printf("%d: ", j);
 
-void TopRelaxationMethod(long double ***data) {
-	
-	long double w = 1;			// параметр метода (в интервале от 0 до 2)
-	int Nmax = 10000;		// максимальное число итераций (не менее 1)
-	int S = 0;				// счетчик итераций
-	long double eps = 0.001; // минимально допустимый прирост
-	long double eps_max = 0;		// текущее значение прироста
-	long double eps_cur = 0;		// дл€ подсчета текущего значени€ прироста
-	long double a2, k2, h2;		// ненулевые элементы матрицы (ЦA)
-
-	//double f[n + 1][m + 1]; // f( x,y) из дифф. уравнени€ в узлах сетки
-	long double a = 0, b = 2, c = 0, d = 2;		// границы области
-
-
-	long double v_old;		// старое значение преобразуемой компоненты вектора v
-	long double v_new;		// новое значение преобразуемой компоненты вектора v
-	bool f = false;			// условие остановки
-	h2 = -(n / (b - a)) * (n / (b - a));
-	k2 = -(m / (d - c)) * (m / (d - c));
-	a2 = -2 * (1.L /(h*h)  + 1.L/(k*k));
-	while (!f) {
-		eps_max = 0;
-		for (int j = 1; j < m; j++) {
-			for (int i = 1; i < n; i++) {
-				v_old = (*data)[i][j];
-				v_new = -w * (h2 * ((*data)[i + 1][j] + (*data)[i - 1][j]) + k2 * ((*data)[i][j + 1] + (*data)[i][j - 1]));
-				v_new = v_new + (1 - w) * a2 * (*data)[i][j] + w;// *f[i][j];
-				v_new = v_new / a2;
-				
-				eps_cur = abs(v_old - v_new);
-
-				if (eps_cur > eps_max) {
-					eps_max = eps_cur;
+		for (int i = 0; i <= n; i++) {
+			if (Data[i][j] >= 0) {
+				if (Data[i][j] == 0) {
+					if ((j <= m && j > _mH) && (i <= n && i >= _nH)) {
+						printf("        \t");
+					}
+					else {
+						printf(" %.6f\t", 0);
+					}
 				}
-
-				(*data)[i][j] = v_new;
+				else {
+					printf(" %.6f\t", Data[i][j]);
+				}
+			}
+			else {
+				printf("%.6f \t", Data[i][j]);
 			}
 		}
-		S = S + 1;
-		if ((eps_max < eps) || (S >= Nmax)) {
-			f = true;
+		cerr << endl;
+	}
+	cerr << endl;
+}
+
+long double w = 1;			// параметр метода (в интервале от 0 до 2)
+long double h2 = -((long double)n / (long double)(X1 - X0)) * ((long double)n / (long double)(X1 - X0));
+long double k2 = -((long double)m / (long double)(Y1 - Y0)) * ((long double)m / (long double)(Y1 - Y0));
+long double a2 = -2 * (h2 + k2);
+
+
+// Calculate v[i][j]
+long double Vspp(unsigned int i, unsigned int j, long double* accretion = nullptr) {
+	long double Vspp = 0;
+	long double Vs = Data[i][j];
+
+	Vspp -= h2 * (Data[i + 1][j] + Data[i - 1][j]);
+	Vspp -= k2 * (Data[i][j + 1] + Data[i][j - 1]);
+	Vspp += a2 * Data[i][j] * ((1.L / w) - 1);
+	Vspp += funcDiff(Xi(i), Yj(j));
+	Vspp /= a2;
+	Vspp *= w;
+
+	if (accretion != nullptr) {
+		(*accretion) = abs(Vspp - Vs);
+	}
+
+	return Vspp;
+}
+
+void TopRelaxationMethod(bool output = false) {
+
+	unsigned int Scur = 0;
+	unsigned int Smax = 10000;
+	long double accretion = 0;
+	long double accretion_max = 0;
+	long double accretion_min = 1e-008L;
+
+	do {
+		accretion_max = 0;
+		
+		for (int j = _m - 2; j >= _mH; j--) {
+			for (int i = 1; i < _nH; i++) {
+				Data[i][j] = Vspp(i, j, &accretion);
+				accretion_max = max(accretion, accretion_max);
+			}
 		}
+
+		for (int j = _mH - 1; j > 0; j--) {
+			for (int i = 1; i < n; i++) {
+				Data[i][j] = Vspp(i, j, &accretion);
+				accretion_max = max(accretion, accretion_max);
+			}
+		}
+
+		Scur++;
+	} while ((accretion_max >= accretion_min) && (Scur < Smax));
+
+	if (output) {
+		if (accretion_max < accretion_min) {
+			cerr << "¬ыход по точности" << endl;
+			cerr << "—овершено итераций: " << Scur << endl;
+			cerr << "ƒостигнута€ точность: " << accretion_max << endl;
+			cerr << "”становленна€ точность: " << accretion_min << endl;
+		}
+		else {
+			cerr << "¬ыход по итерации S: " << Scur << " > Smax = " << Smax << endl;
+			cerr << "ƒостигнута€ точность: " << accretion_max << endl;
+		}
+		cerr << endl;
 	}
 }
 
 
 
 int main() {
-	InitRule(Region, ruleFunc);
-	InitGrid(&Data, n, m);
-	TopRelaxationMethod(&Data);
-	for (int j = 0; j <= m; j++) {
-		for (int i = 0; i <= n; i++) {
-			cout << Data[i][j] << ' ';
-		}
-		cout << endl;
-	}
+	setlocale(LC_ALL, "Russian");
+
+	InitRule(ruleFunc);
+	InitGrid();
+
+	cerr << "u(x,y) = 1 - (x - 1)^2 - (y - 0.5)^2;" << endl;
+	cerr << "»сходна€ сетка:" << endl << endl;
+	PrintGrid();
+
+	TopRelaxationMethod(true);
+	PrintGrid();
+
 	cout << endl;
-	cout << "Hello" << ruleFunc[0](0,0) << Data[0][0];
+	system("pause");
 }
