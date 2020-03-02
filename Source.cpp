@@ -16,22 +16,25 @@ Function funcDiff = [](long double x, long double y) {
 
 
 //размерность сетки
-unsigned int n = 4;
-unsigned int m = 4;
+unsigned int n;// = 4;
+unsigned int m;// = 4;
 
-unsigned int _n = n + 1;
-unsigned int _m = m + 1;
+unsigned int _n;// = n + 1;
+unsigned int _m;// = m + 1;
 
-unsigned int _nH = _n / 2;
-unsigned int _mH = _m / 2;
+unsigned int _nH;// = _n / 2;
+unsigned int _mH;// = _m / 2;
 
 long double X0 = 0.L;// 1.L;
 long double Y0 = 0.L;// 2.L;
 long double X1 = 2.L;
 long double Y1 = 1.L;// 3.L;
 
-long double  h = (X1 - X0) / n;
-long double  k = (Y1 - Y0) / m;
+long double  h;// = (X1 - X0) / n;
+long double  k;// = (Y1 - Y0) / m;
+
+unsigned int Smax = 10000;
+long double accretion_min = 1e-008L;
 
 
 long double Xi(unsigned int i) {
@@ -90,13 +93,13 @@ void InitGrid() {
 	for (int i = 0; i < _nH; i++) {
 		Data[i][m] = ruleFunc[1](Xi(i), Yj(m));
 	}
-	for (int j = m / 2; j < _m ; j++) {
+	for (int j = _mH; j < _m ; j++) {
 		Data[_nH][j] = ruleFunc[2](Xi(_nH), Yj(j));
 	}
 	for (int i = _nH; i < _n; i++) {
 		Data[i][_mH] = ruleFunc[3](Xi(i), Yj(_mH));
 	}
-	for (int j = 0; j < m / 2; j++) {
+	for (int j = 0; j < _mH; j++) {
 		Data[n][j] = ruleFunc[4](Xi(n), Yj(j));
 	}
 	for (int i = 0; i < _n; i++) {
@@ -131,10 +134,10 @@ void PrintGrid() {
 	cerr << endl;
 }
 
-long double w = 1;			// параметр метода (в интервале от 0 до 2)
-long double h2 = -((long double)n / (long double)(X1 - X0)) * ((long double)n / (long double)(X1 - X0));
-long double k2 = -((long double)m / (long double)(Y1 - Y0)) * ((long double)m / (long double)(Y1 - Y0));
-long double a2 = -2 * (h2 + k2);
+long double w = 1; // параметр метода (в интервале от 0 до 2)
+long double h2;
+long double k2;
+long double a2;
 
 
 // Calculate v[i][j]
@@ -157,12 +160,13 @@ long double Vspp(unsigned int i, unsigned int j, long double* accretion = nullpt
 }
 
 void TopRelaxationMethod(bool output = false) {
+	h2 = -((long double)n / (long double)(X1 - X0)) * ((long double)n / (long double)(X1 - X0));
+	k2 = -((long double)m / (long double)(Y1 - Y0)) * ((long double)m / (long double)(Y1 - Y0));
+	a2 = -2 * (h2 + k2);
 
 	unsigned int Scur = 0;
-	unsigned int Smax = 10000;
 	long double accretion = 0;
 	long double accretion_max = 0;
-	long double accretion_min = 1e-008L;
 
 	do {
 		accretion_max = 0;
@@ -204,10 +208,26 @@ void TopRelaxationMethod(bool output = false) {
 int main() {
 	setlocale(LC_ALL, "Russian");
 
+	cerr << "u(x,y) = 1 - (x - 1)^2 - (y - 0.5)^2;" << endl;
+
+	cerr << "¬ведите размерность сетки Ox: ";	cin >> n;
+	cerr << "¬ведите размерность сетки Oy: ";	cin >> m;
+	cerr << "¬ведите точность метода: ";		cin >> accretion_min;
+	cerr << "¬ведите ограничение шагов: ";		cin >> Smax;
+	cerr << "¬ведите параметр w метода ¬–: ";	cin >> w;
+
+	_n = n + 1;
+	_m = m + 1;
+
+	_nH = _n / 2;
+	_mH = _m / 2;
+
+	h = (X1 - X0) / n;
+	k = (Y1 - Y0) / m;
+
 	InitRule(ruleFunc);
 	InitGrid();
 
-	cerr << "u(x,y) = 1 - (x - 1)^2 - (y - 0.5)^2;" << endl;
 	cerr << "»сходна€ сетка:" << endl << endl;
 	PrintGrid();
 
